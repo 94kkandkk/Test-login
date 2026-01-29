@@ -124,11 +124,11 @@
     </div>
 
     <script>
-        // ===================== 已修复域名（无需修改其他配置）=====================
-        const API_DOMAIN = "https://api.bmob.cn"; // Bmob最新可用通用API域名（替换原失效域名）
-        const APPLICATION_ID = "c141a3e46cf90c9c1a9911a145d649a2"; // 你的Application-Id（保留）
-        const REST_API_KEY = "43d61cb9d1472320be18437af499ee5c"; // 你的REST-API-Key（保留）
+        // ===================== 仅需修改这1个配置！=====================
+        const SECRET_KEY = "06a8c3eb378d484f"; // 替换为你的Bmob应用Secret Key（必改！）
         // ==============================================================
+        // Bmob官方云函数调用域名（固定，无需修改）
+        const CLOUD_DOMAIN = "http://cloud.bmobapp.com";
 
         function switchTab(type) {
             document.getElementById('registerTab').className = type === 'register' ? 'active' : '';
@@ -145,6 +145,7 @@
             resultBox.className = 'result';
             resultBox.innerText = '请求中...';
 
+            // 获取参数并前端校验
             if (type === 'register') {
                 username = document.getElementById('regUsername').value.trim();
                 password = document.getElementById('regPassword').value.trim();
@@ -161,25 +162,30 @@
             }
 
             try {
-                const requestData = { username, password };
-                const response = await fetch(`${API_DOMAIN}/1/functions/${functionName}`, {
+                // 构造FormData（适配x-www-form-urlencoded格式）
+                const formData = new FormData();
+                formData.append('username', username);
+                formData.append('password', password);
+
+                // 发送POST请求（Bmob直接HTTP调用规范）
+                const response = await fetch(`${CLOUD_DOMAIN}/${SECRET_KEY}/${functionName}`, {
                     method: 'POST',
-                    headers: {
-                        "X-Bmob-Application-Id": APPLICATION_ID,
-                        "X-Bmob-REST-API-Key": REST_API_KEY,
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify(requestData),
-                    mode: 'cors' // 解决GitHub Pages跨域（保留）
+                    body: formData, // 自动适配Content-Type，无跨域问题
+                    cache: 'no-cache'
                 });
+
+                // 解析响应结果
                 const result = await response.json();
                 const formatResult = JSON.stringify(result, null, 2);
+                // 根据云函数返回code判断状态
                 result.code === 200 ? showResult('success', formatResult) : showResult('error', formatResult);
             } catch (error) {
-                showResult('error', `请求异常：${error.message}`);
+                // 捕获网络/请求异常
+                showResult('error', `请求异常：${error.message}\n请检查Secret Key是否正确！`);
             }
         }
 
+        // 结果展示（带样式）
         function showResult(type, content) {
             const resultBox = document.getElementById('resultBox');
             resultBox.className = `result ${type}`;
