@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bmob纯HTML用户系统</title>
+    <!-- 简单样式，优化体验，可自定义 -->
+    <style>
+        * {margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei";}
+        body {padding: 20px; max-width: 400px; margin: 0 auto;}
+        h3 {margin: 20px 0 10px; color: #333;}
+        input {width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 4px; font-size: 16px;}
+        button {width: 100%; padding: 10px; background: #1890ff; color: #fff; border: none; border-radius: 4px; font-size: 16px; cursor: pointer;}
+        button:disabled {background: #ccc; cursor: not-allowed;}
+        .tip {color: #666; font-size: 14px; margin: 5px 0;}
+    </style>
+</head>
+<body>
+    <h3>账号密码登录/注册</h3>
+    <input type="text" id="username" placeholder="请输入用户名（唯一）">
+    <input type="password" id="pwd" placeholder="请输入密码（至少6位）">
+    <button onclick="register()">用户注册</button>
+    <button onclick="loginByAccount()">账号登录</button>
+    <p class="tip">注：用户名唯一，注册后可直接登录</p>
+
+    <h3>手机号验证码登录（推荐）</h3>
+    <input type="tel" id="phone" placeholder="请输入11位手机号">
+    <input type="text" id="code" placeholder="请输入6位验证码">
+    <button onclick="sendSmsCode()" id="smsBtn">获取验证码</button>
+    <button onclick="loginByPhone()">验证码登录</button>
+    <p class="tip">每月免费1000条短信，无需额外实名认证</p>
+
+    <h3>用户操作</h3>
+    <button onclick="getUserInfo()">获取当前用户信息</button>
+    <button onclick="logout()">退出登录</button>
+
+    <script>
+        /************************* 核心配置：替换为你的Bmob密钥 *************************/
+        const BMOB_APP_ID = "你的Application ID"; // 替换为自己的Application ID
+        const BMOB_REST_KEY = "你的REST API Key";  // 替换为自己的REST API Key
+        const BMOB_API_BASE = "https://api.bmob.cn/1"; // Bmob固定API前缀，无需修改
+        /******************************************************************************/
+
+        // 全局存储登录Token，从localStorage读取（刷新页面不丢失登录状态）
+        let userToken = localStorage.getItem('bmob_user_token') || '';
+        // 获取页面元素
+        const smsBtn = document.getElementById('smsBtn');
+
+        // —————————————————— 1. 账号密码注册 ——————————————————
+        async function register() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('pwd').value.trim();
+            // 表单验证
+            if (!username) {
+                alert('请输入用户名！');
+                return;
+            }
+            if (password.length < 6) {
+                alert('密码长度不能少于6位！');
+                return;
+            }
+            try {
+                // 调用Bmob注册API
+                const response = await fetch(`${BMOB_API_BASE}/users`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Bmob-Application-Id': BMOB_APP_ID,
+                        'X-Bmob-REST-API-Key': BMOB_REST_KEY,
+                        'Content-Type': 'application/json;charset=utf-8'
+                    },
+                    body: JSON.stringify({ username, password }) // 传递用户名和密码
+                });
+                const result = await response.json();
+                // 处理请求结果
+                if (response.ok) {
+                    alert(`注册成功！你的用户ID：${result.objectId}`);
+                    // 注册成功后清空输入框
+                    document.getElementById('username').value = '';
+                    document.getElementById('pwd').value = '';
+                } else {
+                    alert(`注册失败：${result.error || '未知错误'}`);
+                }
+            } catch (error) {
+                alert(`网络错误：${error.message}`);
+                console.error('注册请求失败：', error);
+            }
+        }
+
+        // —————————————————— 2. 账号密码登录 ——————————————————
+        async function loginByAccount() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('pwd').value.trim();
+            // 表单验证
+            if (!username || !password) {
+                alert('请输入用户名和密码！');
+                return;
+            }
+            try {
+                // 调用Bmob账号登录API（GET请求，参数拼在URL后）
+                const response = await fetch(
+                    `${BMOB_API_BASE}/login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`,
+                    {
+                        method: 'GET',
+                        headers: {
+                            'X-Bmob-Application-Id': BMOB_APP_ID,
+                            'X-Bmob-REST-API-Key': BMOB_REST_KEY
+                        }
+                    }
+                );
+                const result = await response.json();
+                // 处理登录结果
+                if (response.ok) {
+                    // 登录成功，保存Token到全局变量和localStorage
+                    userToken = result.sessionToken;
+                    localStorage.setItem('bmob_user_token', userToken);
+                    alert(`登录成功！欢迎你，${username}`);
+                    // 清空输入框
+                    document.getElementById('username').value = '';
+                    document.getElementById('pwd').value = '';
+                } else {
+                    alert(`登录失败：${result.error || '用户名或密码错误'}`);
+                }
+            } catch (error) {
+                alert(`网络错误：${error.message}`);
+                console.error('账号登录请求失败：', error);
+            }
+        }
+
+        // —————————————————— 3. 发送手机号验证码 ——————————————————
+        async function sendSmsCode() {
+            const phone = document.getElementById('phone').value.trim();
+            // 手机号格式验证
+            if (!/^1[3-9]\d{9}$/.test(phone)) {
+                alert('请输入有效的11位手机号！');
+                return;
+            }
+            try {
+                // 调用Bmob发送短信验证码API
+                const response = await fetch(`${BMOB_API_BASE}/requestSmsCode`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Bmob-Application-Id': BMOB_APP_ID,
+                        'X-Bmob-REST-API-Key': BMOB_REST_KEY,
+                        'Content-Type': 'application/json;charset=utf-8'
+                    },
+                    body: JSON.stringify({ phoneNumber: phone }) // 传递手机号
+                });
+                const result = await response.json();
+                // 处理结果
+                if (response.ok) {
+                    alert('验证码发送成功！请注意查收短信');
+                    // 开启60秒倒计时，防止重复发送
+                    startSmsCountdown();
+                } else {
+                    alert(`发送失败：${result.error || '短信发送超限'}`);
+                }
+            } catch (error) {
+                alert(`网络错误：${error.message}`);
+                console.error('发送验证码请求失败：', error);
+            }
+        }
+
+        // 短信验证码倒计时函数（辅助功能）
+        function startSmsCountdown() {
+            let count = 60;
+            smsBtn.disabled = true;
+            smsBtn.innerText = `重新获取(${count}s)`;
+            const timer = setInterval(() => {
+                count--;
+                smsBtn.innerText = `重新获取(${count}s)`;
+                if (count <= 0) {
+                    clearInterval(timer);
+                    smsBtn.disabled = false;
+                    smsBtn.innerText = '获取验证码';
+                }
+            }, 1000);
+        }
+
+        // —————————————————— 4. 手机号验证码登录 ——————————————————
+        async function loginByPhone() {
+            const phone = document.getElementById('phone').value.trim();
+            const code = document.getElementById('code').value.trim();
+            // 表单验证
+            if (!/^1[3-9]\d{9}$/.test(phone)) {
+                alert('请输入有效的11位手机号！');
+                return;
+            }
+            if (!/^\d{6}$/.test(code)) {
+                alert('请输入6位数字验证码！');
+                return;
+            }
+            try {
+                // 调用Bmob验证短信验证码API
+                const response = await fetch(
+                    `${BMOB_API_BASE}/verifySmsCode/${code}?phoneNumber=${phone}`,
+                    {
+                        method: 'GET',
+                        headers: {
+                            'X-Bmob-Application-Id': BMOB_APP_ID,
+                            'X-Bmob-REST-API-Key': BMOB_REST_KEY
+                        }
+                    }
+                );
+                const result = await response.json();
+                // 处理登录结果
+                if (response.ok) {
+                    // 登录成功，保存Token
+                    userToken = result.sessionToken;
+                    localStorage.setItem('bmob_user_token', userToken);
+                    alert(`登录成功！你的手机号：${phone}`);
+                    // 清空输入框
+                    document.getElementById('phone').value = '';
+                    document.getElementById('code').value = '';
+                } else {
+                    alert(`登录失败：${result.error || '验证码错误或已过期'}`);
+                }
+            } catch (error) {
+                alert(`网络错误：${error.message}`);
+                console.error('验证码登录请求失败：', error);
+            }
+        }
+
+        // —————————————————— 5. 获取当前登录用户信息 ——————————————————
+        async function getUserInfo() {
+            // 先判断是否已登录（Token是否存在）
+            if (!userToken) {
+                alert('请先登录！');
+                return;
+            }
+            try {
+                // 调用Bmob获取用户信息API，需携带Token鉴权
+                const response = await fetch(`${BMOB_API_BASE}/users/me`, {
+                    method: 'GET',
+                    headers: {
+                        'X-Bmob-Application-Id': BMOB_APP_ID,
+                        'X-Bmob-REST-API-Key': BMOB_REST_KEY,
+                        'X-Bmob-Session-Token': userToken // 核心：携带登录Token鉴权
+                    }
+                });
+                const result = await response.json();
+                // 处理结果
+                if (response.ok) {
+                    // 拼接用户信息，友好展示
+                    const userInfo = `
+当前登录用户信息：
+————————————
+用户ID：${result.objectId}
+用户名：${result.username || '未设置'}
+手机号：${result.phoneNumber || '未绑定'}
+注册时间：${new Date(result.createdAt).toLocaleString()}
+最后登录：${new Date(result.updatedAt).toLocaleString()}
+                    `;
+                    alert(userInfo);
+                } else {
+                    alert(`获取信息失败：${result.error || 'Token已过期，请重新登录'}`);
+                    // Token失效，清除本地存储
+                    localStorage.removeItem('bmob_user_token');
+                    userToken = '';
+                }
+            } catch (error) {
+                alert(`网络错误：${error.message}`);
+                console.error('获取用户信息请求失败：', error);
+            }
+        }
+
+        // —————————————————— 6. 退出登录 ——————————————————
+        async function logout() {
+            if (!userToken) {
+                alert('你还未登录！');
+                return;
+            }
+            try {
+                // 调用Bmob退出登录API，销毁Token
+                const response = await fetch(`${BMOB_API_BASE}/logout`, {
+                    method: 'POST',
+                    headers: {
+                        'X-Bmob-Application-Id': BMOB_APP_ID,
+                        'X-Bmob-REST-API-Key': BMOB_REST_KEY,
+                        'X-Bmob-Session-Token': userToken
+                    }
+                });
+                // 处理结果（无论接口是否返回成功，都清除本地Token）
+                localStorage.removeItem('bmob_user_token');
+                userToken = '';
+                alert('退出登录成功！');
+                // 清空所有输入框
+                document.getElementById('username').value = '';
+                document.getElementById('pwd').value = '';
+                document.getElementById('phone').value = '';
+                document.getElementById('code').value = '';
+            } catch (error) {
+                alert(`网络错误：${error.message}，已强制退出`);
+                console.error('退出登录请求失败：', error);
+                // 即使接口失败，也清除本地Token
+                localStorage.removeItem('bmob_user_token');
+                userToken = '';
+            }
+        }
+    </script>
+</body>
+</html>
