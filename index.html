@@ -98,12 +98,12 @@
 </div>
 
 <script>
-    // 已配置你的Bmob密钥
+    // 已配置你的Bmob密钥（无需修改）
     const BMOB_APP_ID = "c141a3e46cf90c9c1a9911a145d649a2";
     const BMOB_REST_KEY = "43d61cb9d1472320be18437af499ee5c";
     const BMOB_API_BASE = "https://api.bmob.cn/1";
 
-    // 登录令牌持久化
+    // 登录令牌持久化（刷新页面不丢失登录状态）
     let userToken = localStorage.getItem('bmob_user_token') || '';
 
     /**
@@ -124,13 +124,13 @@
         }
 
         try {
-            // 1. 调用Bmob注册接口
+            // 1. 调用Bmob注册接口（修复：Content-Type 仅保留 application/json）
             const regRes = await fetch(`${BMOB_API_BASE}/users`, {
                 method: "POST",
                 headers: {
                     "X-Bmob-Application-Id": BMOB_APP_ID,
                     "X-Bmob-REST-API-Key": BMOB_REST_KEY,
-                    "Content-Type": "application/json;charset=utf-8"
+                    "Content-Type": "application/json" // 关键修复：删除 ;charset=utf-8
                 },
                 body: JSON.stringify({ username, password })
             });
@@ -275,7 +275,8 @@
                 headers: {
                     "X-Bmob-Application-Id": BMOB_APP_ID,
                     "X-Bmob-REST-API-Key": BMOB_REST_KEY,
-                    "X-Bmob-Session-Token": userToken
+                    "X-Bmob-Session-Token": userToken,
+                    "Content-Type": "application/json" // 统一规范，仅保留基础类型
                 }
             });
         } catch (error) {
