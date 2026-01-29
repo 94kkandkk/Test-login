@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bmob-注册登录测试</title>
+    <title>Bmob-注册登录测试（GET方式）</title>
     <style>
         * {
             margin: 0;
@@ -124,11 +124,12 @@
     </div>
 
     <script>
-        // ===================== 配置项（无需修改，已适配）=====================
-        const SECRET_KEY = "06a8c3eb378d484f"; // 你的Bmob Secret Key（保留）
-        const CLOUD_DOMAIN = "https://cloud.bmobapp.com"; // 核心修复：http → https，解决混合内容拦截
+        // ===================== 已填充所有配置（无需修改）=====================
+        const SECRET_KEY = "06a8c3eb378d484f"; // 你的Bmob Secret Key（固定）
+        const CLOUD_DOMAIN = "https://cloud.bmobapp.com"; // HTTPS域名，匹配GitHub Pages
         // ==============================================================
 
+        // 标签页切换逻辑
         function switchTab(type) {
             document.getElementById('registerTab').className = type === 'register' ? 'active' : '';
             document.getElementById('loginTab').className = type === 'login' ? 'active' : '';
@@ -138,13 +139,15 @@
             document.getElementById('resultBox').innerText = '请点击按钮提交请求，结果将展示在这里...';
         }
 
+        // 提交表单（注册/登录，GET方式调用）
         async function submitForm(type) {
             let username, password, functionName;
             const resultBox = document.getElementById('resultBox');
+            // 初始化请求状态
             resultBox.className = 'result';
             resultBox.innerText = '请求中...';
 
-            // 获取参数并前端校验
+            // 获取参数并做前端基础校验
             if (type === 'register') {
                 username = document.getElementById('regUsername').value.trim();
                 password = document.getElementById('regPassword').value.trim();
@@ -161,30 +164,32 @@
             }
 
             try {
-                // 构造FormData（适配x-www-form-urlencoded，无跨域）
-                const formData = new FormData();
-                formData.append('username', username);
-                formData.append('password', password);
-
-                // 发送HTTPS POST请求（匹配GitHub Pages的HTTPS协议，无混合内容拦截）
-                const response = await fetch(`${CLOUD_DOMAIN}/${SECRET_KEY}/${functionName}`, {
-                    method: 'POST',
-                    body: formData, // 自动适配Content-Type，无需手动设置
-                    cache: 'no-cache'
+                // 构造GET请求参数（URL编码，避免特殊字符问题）
+                const params = new URLSearchParams();
+                params.append('username', username);
+                params.append('password', password);
+                // 拼接完整请求地址（严格匹配Bmob GET调用规范：域名/SecretKey/云函数名?参数）
+                const requestUrl = `${CLOUD_DOMAIN}/${SECRET_KEY}/${functionName}?${params.toString()}`;
+                
+                // 发送GET请求（无跨域问题，无需额外请求头）
+                const response = await fetch(requestUrl, {
+                    method: 'GET',
+                    cache: 'no-cache' // 禁止缓存，保证请求实时性
                 });
 
                 // 解析响应结果
                 const result = await response.json();
+                // 格式化JSON结果，方便查看
                 const formatResult = JSON.stringify(result, null, 2);
-                // 根据云函数返回code判断状态
+                // 根据云函数返回的code判断成功/失败
                 result.code === 200 ? showResult('success', formatResult) : showResult('error', formatResult);
             } catch (error) {
-                // 捕获异常并提示关键排查点
-                showResult('error', `请求异常：${error.message}\n排查点：1. Secret Key是否正确 2. 云函数是否已部署`);
+                // 捕获网络/解析异常，给出明确排查提示
+                showResult('error', `请求异常：${error.message}\n请排查：1. 网络是否通畅 2. 云函数是否已部署`);
             }
         }
 
-        // 结果展示（绿色成功/红色失败，格式化JSON）
+        // 结果展示（绿色成功/红色失败，带格式化）
         function showResult(type, content) {
             const resultBox = document.getElementById('resultBox');
             resultBox.className = `result ${type}`;
