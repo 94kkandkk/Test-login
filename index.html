@@ -3,217 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bmob-无验证注册登录（官方文档规范版）</title>
+    <title>Bmob 核心注册登录</title>
+    <!-- 引入Bmob官方SDK（核心依赖，解决所有网络/接口调用问题） -->
+    <script src="https://cdn.jsdelivr.net/npm/bmob-js-sdk@1.4.10/dist/bmob.min.js"></script>
     <style>
-        * {margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", sans-serif;}
-        body {padding: 20px; max-width: 420px; margin: 20px auto; background: #f5f5f5;}
-        .container {background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);}
-        h3 {margin: 0 0 20px; color: #333; font-size: 18px; border-left: 4px solid #1890ff; padding-left: 10px;}
-        .form-item {margin-bottom: 18px;}
-        input {width: 100%; padding: 12px 15px; border: 1px solid #e5e5e5; border-radius: 6px; font-size: 16px; outline: none; transition: border-color 0.3s;}
-        input:focus {border-color: #1890ff;}
-        button {width: 100%; padding: 12px; background: #1890ff; color: #fff; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; transition: background 0.3s; margin-bottom: 12px;}
-        button:hover {background: #096dd9;}
-        .tip {color: #666; font-size: 14px; line-height: 1.5; margin-top: 10px;}
+        /* 极简样式，仅保证功能可用 */
+        body {max-width: 400px; margin: 50px auto; padding: 0 20px; font-family: sans-serif;}
+        input {width: 100%; padding: 10px; margin: 8px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;}
+        button {width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;}
+        button:hover {background: #0056b3;}
+        .result {margin-top: 20px; padding: 10px; border-radius: 4px; font-size: 14px;}
+        .success {background: #d4edda; color: #155724;}
+        .error {background: #f8d7da; color: #721c24;}
     </style>
-    <!-- 解决favicon.ico 404（非必需，仅美化） -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='90' font-size='90'>👤</text></svg>">
 </head>
 <body>
-<div class="container">
-    <h3>用户注册 & 登录（无手机/邮箱验证）</h3>
-    <div class="form-item">
-        <input type="text" id="username" placeholder="请输入用户名（唯一）" autocomplete="off">
-    </div>
-    <div class="form-item">
-        <input type="password" id="pwd" placeholder="请输入密码（至少6位）" autocomplete="off">
-    </div>
-    <button onclick="registerAndAutoLogin()">注册并自动登录</button>
-    <button onclick="loginOnly()">已有账号，直接登录</button>
+    <h3>用户注册</h3>
+    <input type="text" id="regUsername" placeholder="请输入注册用户名" required>
+    <input type="password" id="regPwd" placeholder="请输入注册密码" required>
+    <button onclick="userRegister()">立即注册</button>
 
-    <h3>用户操作</h3>
-    <button onclick="getUserInfo()">获取当前用户信息</button>
-    <button onclick="logout()">退出登录</button>
+    <hr style="margin: 30px 0;">
 
-    <p class="tip">严格遵循Bmob官方RESTful文档 | 用户名唯一 | 注册成功自动登录</p>
-</div>
+    <h3>用户登录</h3>
+    <input type="text" id="loginUsername" placeholder="请输入用户名" required>
+    <input type="password" id="loginPwd" placeholder="请输入密码" required>
+    <button onclick="userLogin()">立即登录</button>
 
-<script>
-    /************************* 已配置你的Bmob密钥（无需修改） *************************/
-    const BMOB_APP_ID = "c141a3e46cf90c9c1a9911a145d649a2";
-    const BMOB_REST_KEY = "43d61cb9d1472320be18437af499ee5c";
-    /************************* 官方文档指定的核心配置（固定不变） *************************/
-    const BMOB_API_BASE = "https://api.bmob.cn/1"; // 官方主域名（文档指定）
-    const BMOB_HEADERS = { // 所有接口必传公共请求头（文档强制要求）
-        "X-Bmob-Application-Id": BMOB_APP_ID,
-        "X-Bmob-REST-API-Key": BMOB_REST_KEY,
-        "Content-Type": "application/json",
-        "X-Bmob-Client-Type": "Web" // 标识客户端类型为Web（文档推荐）
-    };
-    /************************* 登录状态持久化 *************************/
-    let userToken = localStorage.getItem('bmob_user_token') || ''; // 会话令牌
+    <!-- 结果提示框 -->
+    <div id="resultBox" class="result" style="display: none;"></div>
 
-    /**
-     * 1. 注册+自动登录（无验证，符合官方POST /users接口规范）
-     * 文档参考：https://doc.bmobapp.com/data/restful/develop_doc/#_46
-     */
-    async function registerAndAutoLogin() {
-        const username = document.getElementById('username').value.trim();
-        const password = document.getElementById('pwd').value.trim();
+    <script>
+        // 初始化Bmob（已嵌入你的密钥，无需修改）
+        Bmob.initialize("你的Application ID", "你的REST API Key");
 
-        // 基础校验（与官方接口校验互补）
-        if (!username) {alert("请输入用户名！"); return;}
-        if (password.length < 6) {alert("密码至少6位！"); return;}
-
-        try {
-            // 步骤1：调用官方注册接口 - POST /users
-            const regRes = await fetch(`${BMOB_API_BASE}/users`, {
-                method: "POST",
-                headers: BMOB_HEADERS, // 直接使用官方必传公共头
-                body: JSON.stringify({ username, password }) // 文档指定参数字段
-            });
-            const regResult = await regRes.json();
-
-            // 接口返回非200，按官方文档处理错误信息
-            if (!regRes.ok) {
-                alert(`注册失败：${regResult.error || regResult.code || "未知错误"}`);
+        // 注册功能
+        function userRegister() {
+            const username = document.getElementById('regUsername').value.trim();
+            const pwd = document.getElementById('regPwd').value.trim();
+            const resultBox = document.getElementById('resultBox');
+            
+            // 简单校验
+            if (!username || !pwd) {
+                showResult('请完善用户名和密码！', 'error');
                 return;
             }
 
-            alert(`注册成功（用户ID：${regResult.objectId}），正在自动登录...`);
+            // 创建用户实例
+            const User = Bmob.Object.extend("_User");
+            const user = new User();
+            user.set("username", username);
+            user.set("password", pwd);
 
-            // 步骤2：注册成功后，立即调用官方登录接口，实现自动登录
-            await loginOnly(); // 复用独立登录逻辑，减少代码冗余
-            // 清空输入框
-            document.getElementById('username').value = "";
-            document.getElementById('pwd').value = "";
-
-        } catch (error) {
-            alert(`网络/接口异常：${error.message}\n排查建议：1.检查网络 2.关闭代理 3.刷新DNS`);
-            console.error("注册自动登录异常：", error);
-        }
-    }
-
-    /**
-     * 2. 独立登录（符合官方GET /login接口规范）
-     * 文档参考：https://doc.bmobapp.com/data/restful/develop_doc/#_48
-     */
-    async function loginOnly() {
-        const username = document.getElementById('username').value.trim();
-        const password = document.getElementById('pwd').value.trim();
-
-        if (!username || !password) {
-            alert("请输入用户名和密码！");
-            return;
-        }
-
-        try {
-            // 拼接官方文档指定的GET请求参数，encodeURIComponent处理特殊字符
-            const loginParams = new URLSearchParams({
-                username: encodeURIComponent(username),
-                password: encodeURIComponent(password)
-            });
-            // 调用官方登录接口 - GET /login
-            const loginRes = await fetch(`${BMOB_API_BASE}/login?${loginParams}`, {
-                method: "GET",
-                headers: BMOB_HEADERS // 公共请求头（文档要求）
-            });
-            const loginResult = await loginRes.json();
-
-            if (!loginRes.ok) {
-                alert(`登录失败：${loginResult.error || "用户名/密码错误"}`);
-                return;
-            }
-
-            // 按官方文档，登录成功返回sessionToken，持久化存储
-            userToken = loginResult.sessionToken;
-            localStorage.setItem('bmob_user_token', userToken);
-            alert(`登录成功！欢迎你，${username}`);
-
-        } catch (error) {
-            alert(`网络/接口异常：${error.message}`);
-            console.error("登录异常：", error);
-        }
-    }
-
-    /**
-     * 3. 获取用户信息（符合官方GET /users/me接口规范）
-     * 文档参考：https://doc.bmobapp.com/data/restful/develop_doc/#_50
-     */
-    async function getUserInfo() {
-        // 先校验本地登录状态
-        if (!userToken) {
-            alert("请先登录！");
-            return;
-        }
-
-        try {
-            // 调用官方获取当前用户信息接口，需携带sessionToken鉴权（文档强制要求）
-            const infoRes = await fetch(`${BMOB_API_BASE}/users/me`, {
-                method: "GET",
-                headers: {
-                    ...BMOB_HEADERS, // 继承公共请求头
-                    "X-Bmob-Session-Token": userToken // 鉴权令牌（文档核心要求）
+            // 提交注册
+            user.save(null, {
+                success: function(res) {
+                    showResult(`注册成功！用户ID：${res.id}`, 'success');
+                    // 清空输入框
+                    document.getElementById('regUsername').value = '';
+                    document.getElementById('regPwd').value = '';
+                },
+                error: function(res, err) {
+                    showResult(`注册失败：${err.message}`, 'error');
                 }
             });
-            const infoResult = await infoRes.json();
+        }
 
-            if (!infoRes.ok) {
-                alert(`获取信息失败：${infoResult.error || "登录已过期，请重新登录"}`);
-                // 令牌失效，清除本地状态
-                localStorage.removeItem('bmob_user_token');
-                userToken = '';
+        // 登录功能
+        function userLogin() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const pwd = document.getElementById('loginPwd').value.trim();
+            
+            if (!username || !pwd) {
+                showResult('请完善用户名和密码！', 'error');
                 return;
             }
 
-            // 按官方返回字段，拼接用户信息
-            const userInfo = `
-当前登录用户信息（官方接口返回）：
-——————————————————
-用户ID：${infoResult.objectId}
-用户名：${infoResult.username}
-注册时间：${new Date(infoResult.createdAt).toLocaleString()}
-最后更新：${new Date(infoResult.updatedAt).toLocaleString()}
-            `;
-            alert(userInfo);
-
-        } catch (error) {
-            alert(`网络/接口异常：${error.message}`);
-            console.error("获取用户信息异常：", error);
-        }
-    }
-
-    /**
-     * 4. 退出登录（符合官方POST /logout接口规范）
-     * 文档参考：https://doc.bmobapp.com/data/restful/develop_doc/#_49
-     */
-    async function logout() {
-        if (!userToken) {
-            alert("你还未登录！");
-            return;
-        }
-
-        try {
-            // 调用官方退出登录接口，需携带sessionToken
-            await fetch(`${BMOB_API_BASE}/logout`, {
-                method: "POST",
-                headers: {
-                    ...BMOB_HEADERS,
-                    "X-Bmob-Session-Token": userToken
+            // Bmob官方登录方法
+            Bmob.User.logIn(username, pwd, {
+                success: function(user) {
+                    showResult(`登录成功！当前用户：${user.get('username')}`, 'success');
+                    // 清空输入框
+                    document.getElementById('loginUsername').value = '';
+                    document.getElementById('loginPwd').value = '';
+                },
+                error: function(user, err) {
+                    showResult(`登录失败：${err.message}`, 'error');
                 }
             });
-        } catch (error) {
-            console.error("退出接口异常（已强制清除本地状态）：", error);
-        } finally {
-            // 无论接口是否成功，强制清除本地令牌（官方推荐）
-            localStorage.removeItem('bmob_user_token');
-            userToken = '';
-            // 清空输入框
-            document.getElementById('username').value = "";
-            document.getElementById('pwd').value = "";
-            alert("退出登录成功！");
         }
-    }
-</script>
+
+        // 结果提示公共方法
+        function showResult(text, type) {
+            const resultBox = document.getElementById('resultBox');
+            resultBox.innerText = text;
+            resultBox.className = `result ${type}`;
+            resultBox.style.display = 'block';
+            // 3秒后自动隐藏提示
+            setTimeout(() => {
+                resultBox.style.display = 'none';
+            }, 3000);
+        }
+    </script>
 </body>
 </html>
