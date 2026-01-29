@@ -124,11 +124,10 @@
     </div>
 
     <script>
-        // ===================== 仅需修改这1个配置！=====================
-        const SECRET_KEY = "06a8c3eb378d484f"; // 替换为你的Bmob应用Secret Key（必改！）
+        // ===================== 配置项（无需修改，已适配）=====================
+        const SECRET_KEY = "06a8c3eb378d484f"; // 你的Bmob Secret Key（保留）
+        const CLOUD_DOMAIN = "https://cloud.bmobapp.com"; // 核心修复：http → https，解决混合内容拦截
         // ==============================================================
-        // Bmob官方云函数调用域名（固定，无需修改）
-        const CLOUD_DOMAIN = "http://cloud.bmobapp.com";
 
         function switchTab(type) {
             document.getElementById('registerTab').className = type === 'register' ? 'active' : '';
@@ -162,15 +161,15 @@
             }
 
             try {
-                // 构造FormData（适配x-www-form-urlencoded格式）
+                // 构造FormData（适配x-www-form-urlencoded，无跨域）
                 const formData = new FormData();
                 formData.append('username', username);
                 formData.append('password', password);
 
-                // 发送POST请求（Bmob直接HTTP调用规范）
+                // 发送HTTPS POST请求（匹配GitHub Pages的HTTPS协议，无混合内容拦截）
                 const response = await fetch(`${CLOUD_DOMAIN}/${SECRET_KEY}/${functionName}`, {
                     method: 'POST',
-                    body: formData, // 自动适配Content-Type，无跨域问题
+                    body: formData, // 自动适配Content-Type，无需手动设置
                     cache: 'no-cache'
                 });
 
@@ -180,12 +179,12 @@
                 // 根据云函数返回code判断状态
                 result.code === 200 ? showResult('success', formatResult) : showResult('error', formatResult);
             } catch (error) {
-                // 捕获网络/请求异常
-                showResult('error', `请求异常：${error.message}\n请检查Secret Key是否正确！`);
+                // 捕获异常并提示关键排查点
+                showResult('error', `请求异常：${error.message}\n排查点：1. Secret Key是否正确 2. 云函数是否已部署`);
             }
         }
 
-        // 结果展示（带样式）
+        // 结果展示（绿色成功/红色失败，格式化JSON）
         function showResult(type, content) {
             const resultBox = document.getElementById('resultBox');
             resultBox.className = `result ${type}`;
