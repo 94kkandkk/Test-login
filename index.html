@@ -124,10 +124,10 @@
     </div>
 
     <script>
-        // ===================== 已填充所有配置（无需修改）=====================
-        const API_DOMAIN = "https://api2.bmob.cn"; // Bmob官方通用API域名
-        const APPLICATION_ID = "c141a3e46cf90c9c1a9911a145d649a2"; // 你的Application-Id
-        const REST_API_KEY = "43d61cb9d1472320be18437af499ee5c"; // 你的REST-API-Key
+        // ===================== 已修复域名（无需修改其他配置）=====================
+        const API_DOMAIN = "https://api.bmob.cn"; // Bmob最新可用通用API域名（替换原失效域名）
+        const APPLICATION_ID = "c141a3e46cf90c9c1a9911a145d649a2"; // 你的Application-Id（保留）
+        const REST_API_KEY = "43d61cb9d1472320be18437af499ee5c"; // 你的REST-API-Key（保留）
         // ==============================================================
 
         function switchTab(type) {
@@ -170,8 +170,7 @@
                         "Content-Type": "application/json"
                     },
                     body: JSON.stringify(requestData),
-                    // 解决GitHub Pages跨域问题核心配置
-                    mode: 'cors'
+                    mode: 'cors' // 解决GitHub Pages跨域（保留）
                 });
                 const result = await response.json();
                 const formatResult = JSON.stringify(result, null, 2);
