@@ -3,106 +3,188 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bmob 核心注册登录</title>
-    <!-- 引入Bmob官方SDK（核心依赖，解决所有网络/接口调用问题） -->
-    <script src="https://cdn.jsdelivr.net/npm/bmob-js-sdk@1.4.10/dist/bmob.min.js"></script>
+    <title>Bmob-注册登录测试</title>
     <style>
-        /* 极简样式，仅保证功能可用 */
-        body {max-width: 400px; margin: 50px auto; padding: 0 20px; font-family: sans-serif;}
-        input {width: 100%; padding: 10px; margin: 8px 0; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;}
-        button {width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;}
-        button:hover {background: #0056b3;}
-        .result {margin-top: 20px; padding: 10px; border-radius: 4px; font-size: 14px;}
-        .success {background: #d4edda; color: #155724;}
-        .error {background: #f8d7da; color: #721c24;}
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: "Microsoft Yahei", sans-serif;
+        }
+        .container {
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        .tab {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab button {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            background: #f5f5f5;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 4px 4px 0 0;
+            border-bottom: none;
+        }
+        .tab button.active {
+            background: #2196F3;
+            color: #fff;
+            border-color: #2196F3;
+        }
+        .form-item {
+            margin-bottom: 15px;
+        }
+        .form-item label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+            color: #333;
+        }
+        .form-item input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        .submit-btn {
+            width: 100%;
+            padding: 10px;
+            background: #2196F3;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .submit-btn:hover {
+            background: #1976D2;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            min-height: 80px;
+            font-size: 14px;
+            color: #333;
+            white-space: pre-wrap;
+        }
+        .result.success {
+            border-color: #4CAF50;
+            color: #2E7D32;
+            background: #f1f8e9;
+        }
+        .result.error {
+            border-color: #F44336;
+            color: #C62828;
+            background: #ffebee;
+        }
     </style>
 </head>
 <body>
-    <h3>用户注册</h3>
-    <input type="text" id="regUsername" placeholder="请输入注册用户名" required>
-    <input type="password" id="regPwd" placeholder="请输入注册密码" required>
-    <button onclick="userRegister()">立即注册</button>
+    <div class="container">
+        <div class="tab">
+            <button class="active" id="registerTab" onclick="switchTab('register')">用户注册</button>
+            <button id="loginTab" onclick="switchTab('login')">用户登录</button>
+        </div>
 
-    <hr style="margin: 30px 0;">
+        <div id="registerForm" class="form-content">
+            <div class="form-item">
+                <label for="regUsername">用户名</label>
+                <input type="text" id="regUsername" placeholder="请输入注册用户名">
+            </div>
+            <div class="form-item">
+                <label for="regPassword">密码（≥6位）</label>
+                <input type="password" id="regPassword" placeholder="请输入密码">
+            </div>
+            <button class="submit-btn" onclick="submitForm('register')">立即注册</button>
+        </div>
 
-    <h3>用户登录</h3>
-    <input type="text" id="loginUsername" placeholder="请输入用户名" required>
-    <input type="password" id="loginPwd" placeholder="请输入密码" required>
-    <button onclick="userLogin()">立即登录</button>
+        <div id="loginForm" class="form-content" style="display: none;">
+            <div class="form-item">
+                <label for="loginUsername">用户名</label>
+                <input type="text" id="loginUsername" placeholder="请输入登录用户名">
+            </div>
+            <div class="form-item">
+                <label for="loginPassword">密码</label>
+                <input type="password" id="loginPassword" placeholder="请输入密码">
+            </div>
+            <button class="submit-btn" onclick="submitForm('login')">立即登录</button>
+        </div>
 
-    <!-- 结果提示框 -->
-    <div id="resultBox" class="result" style="display: none;"></div>
+        <div class="result" id="resultBox">请点击按钮提交请求，结果将展示在这里...</div>
+    </div>
 
     <script>
-        // 初始化Bmob（已嵌入你的密钥，无需修改）
-        Bmob.initialize("你的Application ID", "你的REST API Key");
+        // ===================== 已填充所有配置（无需修改）=====================
+        const API_DOMAIN = "https://api2.bmob.cn"; // Bmob官方通用API域名
+        const APPLICATION_ID = "c141a3e46cf90c9c1a9911a145d649a2"; // 你的Application-Id
+        const REST_API_KEY = "43d61cb9d1472320be18437af499ee5c"; // 你的REST-API-Key
+        // ==============================================================
 
-        // 注册功能
-        function userRegister() {
-            const username = document.getElementById('regUsername').value.trim();
-            const pwd = document.getElementById('regPwd').value.trim();
-            const resultBox = document.getElementById('resultBox');
-            
-            // 简单校验
-            if (!username || !pwd) {
-                showResult('请完善用户名和密码！', 'error');
-                return;
-            }
-
-            // 创建用户实例
-            const User = Bmob.Object.extend("_User");
-            const user = new User();
-            user.set("username", username);
-            user.set("password", pwd);
-
-            // 提交注册
-            user.save(null, {
-                success: function(res) {
-                    showResult(`注册成功！用户ID：${res.id}`, 'success');
-                    // 清空输入框
-                    document.getElementById('regUsername').value = '';
-                    document.getElementById('regPwd').value = '';
-                },
-                error: function(res, err) {
-                    showResult(`注册失败：${err.message}`, 'error');
-                }
-            });
+        function switchTab(type) {
+            document.getElementById('registerTab').className = type === 'register' ? 'active' : '';
+            document.getElementById('loginTab').className = type === 'login' ? 'active' : '';
+            document.getElementById('registerForm').style.display = type === 'register' ? 'block' : 'none';
+            document.getElementById('loginForm').style.display = type === 'login' ? 'block' : 'none';
+            document.getElementById('resultBox').className = 'result';
+            document.getElementById('resultBox').innerText = '请点击按钮提交请求，结果将展示在这里...';
         }
 
-        // 登录功能
-        function userLogin() {
-            const username = document.getElementById('loginUsername').value.trim();
-            const pwd = document.getElementById('loginPwd').value.trim();
-            
-            if (!username || !pwd) {
-                showResult('请完善用户名和密码！', 'error');
-                return;
+        async function submitForm(type) {
+            let username, password, functionName;
+            const resultBox = document.getElementById('resultBox');
+            resultBox.className = 'result';
+            resultBox.innerText = '请求中...';
+
+            if (type === 'register') {
+                username = document.getElementById('regUsername').value.trim();
+                password = document.getElementById('regPassword').value.trim();
+                functionName = 'userRegister';
+                if (!username) return showResult('error', '请输入注册用户名！');
+                if (!password) return showResult('error', '请输入注册密码！');
+                if (password.length < 6) return showResult('error', '密码长度不能少于6位！');
+            } else {
+                username = document.getElementById('loginUsername').value.trim();
+                password = document.getElementById('loginPassword').value.trim();
+                functionName = 'userLogin';
+                if (!username) return showResult('error', '请输入登录用户名！');
+                if (!password) return showResult('error', '请输入登录密码！');
             }
 
-            // Bmob官方登录方法
-            Bmob.User.logIn(username, pwd, {
-                success: function(user) {
-                    showResult(`登录成功！当前用户：${user.get('username')}`, 'success');
-                    // 清空输入框
-                    document.getElementById('loginUsername').value = '';
-                    document.getElementById('loginPwd').value = '';
-                },
-                error: function(user, err) {
-                    showResult(`登录失败：${err.message}`, 'error');
-                }
-            });
+            try {
+                const requestData = { username, password };
+                const response = await fetch(`${API_DOMAIN}/1/functions/${functionName}`, {
+                    method: 'POST',
+                    headers: {
+                        "X-Bmob-Application-Id": APPLICATION_ID,
+                        "X-Bmob-REST-API-Key": REST_API_KEY,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(requestData),
+                    // 解决GitHub Pages跨域问题核心配置
+                    mode: 'cors'
+                });
+                const result = await response.json();
+                const formatResult = JSON.stringify(result, null, 2);
+                result.code === 200 ? showResult('success', formatResult) : showResult('error', formatResult);
+            } catch (error) {
+                showResult('error', `请求异常：${error.message}`);
+            }
         }
 
-        // 结果提示公共方法
-        function showResult(text, type) {
+        function showResult(type, content) {
             const resultBox = document.getElementById('resultBox');
-            resultBox.innerText = text;
             resultBox.className = `result ${type}`;
-            resultBox.style.display = 'block';
-            // 3秒后自动隐藏提示
-            setTimeout(() => {
-                resultBox.style.display = 'none';
-            }, 3000);
+            resultBox.innerText = content;
         }
     </script>
 </body>
