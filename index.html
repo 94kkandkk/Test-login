@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>用户注册登录系统1.1</title>
+    <title>用户注册登录系统1.2</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
         .container { max-width: 400px; margin: 50px auto; padding: 20px; border: 1px solid #eee; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
@@ -69,26 +69,25 @@
         </div>
     </div>
 
-    <!-- 引入Supabase官方JS库 -->
+    <!-- 引入Supabase官方JS库（全局暴露createClient） -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        // 1. 初始化Supabase客户端（你的专属凭证，无需修改）
-        const SUPABASE_URL = 'https://pydkfxkgozmtntrbxvxk.supabase.co';
-        const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_DM6HoEvzPQa9gZle6xFzTw_03InUa4u';
-        const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+        // 1. 初始化Supabase客户端（仅声明1次，无重复，直接用全局createClient）
+        const supabaseUrl = 'https://pydkfxkgozmtntrbxvxk.supabase.co';
+        const supabaseKey = 'sb_publishable_DM6HoEvzPQa9gZle6xFzTw_03InUa4u';
+        const supabase = createClient(supabaseUrl, supabaseKey);
 
         // 2. 页面加载自动检查登录状态
-        window.onload = async () => {
+        window.onload = async function() {
             await window.checkLoginStatus();
         };
 
-        // 3. 切换注册/登录表单（全局函数）
+        // 3. 切换注册/登录表单（全局函数，确保onclick识别）
         window.toggleForm = function() {
             const regForm = document.getElementById('register-form');
             const loginForm = document.getElementById('login-form');
             regForm.classList.toggle('hidden');
             loginForm.classList.toggle('hidden');
-            // 清空错误提示
             document.getElementById('reg-error').textContent = '';
             document.getElementById('login-error').textContent = '';
         };
@@ -98,11 +97,9 @@
             const { data: { user }, error } = await supabase.auth.getUser();
             if (error) return;
             if (user) {
-                // 隐藏表单，展示用户面板
                 document.getElementById('register-form').classList.add('hidden');
                 document.getElementById('login-form').classList.add('hidden');
                 document.getElementById('user-panel').classList.remove('hidden');
-                // 加载并展示用户名和邮箱
                 await window.loadUsername(user.id);
                 document.getElementById('show-email').textContent = user.email || '未绑定邮箱';
             }
@@ -120,7 +117,7 @@
             }
         };
 
-        // 6. 注册逻辑（用户名+邮箱+密码，全局异步函数）
+        // 6. 注册逻辑（全局异步函数，核心修复）
         window.handleRegister = async function() {
             const username = document.getElementById('reg-username').value.trim();
             const email = document.getElementById('reg-email').value.trim();
@@ -128,7 +125,7 @@
             const errorEl = document.getElementById('reg-error');
             errorEl.textContent = '';
 
-            // 基础表单验证
+            // 基础验证
             if (!username || !email || !password) {
                 errorEl.textContent = '请填写所有必填项';
                 return;
@@ -139,23 +136,19 @@
             }
 
             try {
-                // 第一步：Supabase系统注册（邮箱+密码，无需验证）
-                const { data: authData, error: authError } = await supabase.auth.signUp({
-                    email,
-                    password
-                });
+                // Supabase系统注册（邮箱+密码，无需验证）
+                const { data: authData, error: authError } = await supabase.auth.signUp({ email, password });
                 if (authError) throw new Error(authError.message);
                 const newUser = authData.user;
                 if (!newUser) throw new Error('注册失败，请重试');
 
-                // 第二步：保存用户名到自定义表
+                // 保存用户名到自定义表
                 const { error: profileError } = await supabase
                     .from('user_profiles')
                     .update({ username, updated_at: new Date().toISOString() })
                     .eq('id', newUser.id);
                 if (profileError) throw new Error('用户名保存失败，请重试');
 
-                // 注册成功，自动刷新登录状态
                 await window.checkLoginStatus();
                 alert('注册成功！已自动登录');
             } catch (err) {
@@ -163,21 +156,20 @@
             }
         };
 
-        // 7. 登录逻辑（用户名+密码，全局异步函数）
+        // 7. 登录逻辑（全局异步函数，核心修复）
         window.handleLogin = async function() {
             const username = document.getElementById('login-username').value.trim();
             const password = document.getElementById('login-password').value.trim();
             const errorEl = document.getElementById('login-error');
             errorEl.textContent = '';
 
-            // 基础表单验证
             if (!username || !password) {
                 errorEl.textContent = '请填写用户名和密码';
                 return;
             }
 
             try {
-                // 第一步：根据用户名查询用户ID
+                // 根据用户名查用户ID
                 const { data: profileData, error: profileError } = await supabase
                     .from('user_profiles')
                     .select('id')
@@ -185,18 +177,17 @@
                     .single();
                 if (profileError) throw new Error('用户名不存在');
 
-                // 第二步：根据用户ID获取绑定邮箱
+                // 根据ID查绑定邮箱
                 const { data: userData } = await supabase.auth.getUser(profileData.id);
                 if (!userData?.user) throw new Error('用户信息异常');
 
-                // 第三步：邮箱+密码执行登录
+                // 邮箱+密码登录
                 const { error: loginError } = await supabase.auth.signInWithPassword({
                     email: userData.user.email,
                     password
                 });
                 if (loginError) throw new Error('密码错误，请重试');
 
-                // 登录成功，刷新页面状态
                 await window.checkLoginStatus();
                 alert('登录成功！');
             } catch (err) {
@@ -204,17 +195,15 @@
             }
         };
 
-        // 8. 登出逻辑（全局异步函数）
+        // 8. 登出逻辑（全局异步函数，核心修复）
         window.handleLogout = async function() {
             const { error } = await supabase.auth.signOut();
             if (error) {
                 alert('登出失败：' + error.message);
                 return;
             }
-            // 重置页面，展示登录表单
             document.getElementById('user-panel').classList.add('hidden');
             document.getElementById('login-form').classList.remove('hidden');
-            // 清空输入框
             document.getElementById('login-username').value = '';
             document.getElementById('login-password').value = '';
             alert('已安全登出');
